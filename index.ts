@@ -1,9 +1,12 @@
 export class Container {
+  readonly #generators = new WeakMap<Class, () => unknown>();
   readonly #resolvers = new WeakMap<Class, () => unknown>();
   readonly #values = new WeakMap<Class, unknown>();
 
   get<T>(key: Class<Token<T>> | Class<T>): T {
     if (this.#values.has(key)) return this.#values.get(key) as T;
+
+    if (this.#generators.has(key)) return this.#generators.get(key)!() as T;
 
     if (this.#resolvers.has(key)) {
       const value = this.#resolvers.get(key)!();
@@ -16,15 +19,23 @@ export class Container {
   register<T>(key: Class<Token<T>>, provider: Provider<T>): this;
   register<T>(key: Class<T>, provider: Provider<T>): this;
   register(key: Class, provider: Provider): this {
-    if (this.#resolvers.has(key) || this.#values.has(key))
+    if (
+      this.#generators.has(key) ||
+      this.#resolvers.has(key) ||
+      this.#values.has(key)
+    )
       throw new ContainerDuplicateKeyError(key);
     if ("value" in provider) this.#values.set(key, provider.value);
     if ("resolver" in provider) this.#resolvers.set(key, provider.resolver);
+    if ("generator" in provider) this.#generators.set(key, provider.generator);
     return this;
   }
 }
 
-export type Provider<T = unknown> = { resolver: () => T } | { value: T };
+export type Provider<T = unknown> =
+  | { generator: () => T }
+  | { resolver: () => T }
+  | { value: T };
 
 export abstract class ContainerError extends Error {}
 export class ContainerDuplicateKeyError extends ContainerError {
