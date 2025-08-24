@@ -51,6 +51,53 @@ describe("Container", () => {
       expect(container.get(A)).toBe(container.get(A));
       expect(container.get(AToken)).toBe(container.get(AToken));
     });
+
+    it("invoke related generator definition on first time", () => {
+      class A {}
+      class AToken extends Token<A> {}
+      const [aMock, aTokenMock] = [fn(), fn()];
+      const container = new Container()
+        .register(A, { generator: aMock as () => A })
+        .register(AToken, { generator: aTokenMock as () => A });
+
+      expect(aMock).not.toBeCalled();
+      expect(aTokenMock).not.toBeCalled();
+
+      container.get(A);
+      container.get(AToken);
+      expect(aMock).toBeCalledTimes(1);
+      expect(aTokenMock).toBeCalledTimes(1);
+    });
+
+    it("invoke related generator definition subsequent times", () => {
+      class A {}
+      class AToken extends Token<A> {}
+      const [aMock, aTokenMock] = [fn(), fn()];
+      const container = new Container()
+        .register(A, { generator: aMock as () => A })
+        .register(AToken, { generator: aTokenMock as () => A });
+
+      container.get(A);
+      container.get(AToken);
+      expect(aMock).toBeCalledTimes(1);
+      expect(aTokenMock).toBeCalledTimes(1);
+
+      container.get(A);
+      container.get(AToken);
+      expect(aMock).toBeCalledTimes(2);
+      expect(aTokenMock).toBeCalledTimes(2);
+    });
+
+    it("do not cache any generator returned value", () => {
+      class A {}
+      class AToken extends Token<A> {}
+      const container = new Container()
+        .register(A, { generator: () => new A() })
+        .register(AToken, { generator: () => new A() });
+
+      expect(container.get(A)).not.toBe(container.get(A));
+      expect(container.get(AToken)).not.toBe(container.get(AToken));
+    });
   });
 
   describe("register(key, { value })", () => {
@@ -129,6 +176,48 @@ describe("Container", () => {
       );
       expect(() =>
         container.register(AToken, { resolver: () => new A() }),
+      ).toThrow(ContainerDuplicateKeyError);
+    });
+  });
+
+  describe("register(key, { generator })", () => {
+    it("will return the container object", () => {
+      class A {}
+      class AToken extends Token<A> {}
+      const container = new Container();
+
+      expect(container.register(A, { generator: () => new A() })).toBe(
+        container,
+      );
+      expect(container.register(AToken, { generator: () => new A() })).toBe(
+        container,
+      );
+    });
+
+    it("will cause Container#get to return the generator returned value for the same token", () => {
+      class A {}
+      class AToken extends Token<A> {}
+      const [one, two] = [new A(), new A()];
+      const container = new Container()
+        .register(A, { generator: () => one })
+        .register(AToken, { generator: () => two });
+
+      expect(container.get(A)).toBe(one);
+      expect(container.get(AToken)).toBe(two);
+    });
+
+    it("will throw on same key registration", () => {
+      class A {}
+      class AToken extends Token<A> {}
+      const container = new Container()
+        .register(A, { generator: () => new A() })
+        .register(AToken, { generator: () => new A() });
+
+      expect(() => container.register(A, { generator: () => new A() })).toThrow(
+        ContainerDuplicateKeyError,
+      );
+      expect(() =>
+        container.register(AToken, { generator: () => new A() }),
       ).toThrow(ContainerDuplicateKeyError);
     });
   });
