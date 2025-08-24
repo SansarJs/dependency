@@ -1,7 +1,12 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect, fn } from "@std/expect";
 
-import { Container, ContainerDuplicateKeyError, Token } from "./index.ts";
+import {
+  Container,
+  ContainerDuplicateKeyError,
+  ContainerUndefniedKeyError,
+  Token,
+} from "./index.ts";
 
 describe("Container", () => {
   describe("get(key)", () => {
@@ -97,6 +102,12 @@ describe("Container", () => {
 
       expect(container.get(A)).not.toBe(container.get(A));
       expect(container.get(AToken)).not.toBe(container.get(AToken));
+    });
+
+    it("throw error if no definition exists for given token", () => {
+      expect(() => new Container().get(class A {})).toThrow(
+        ContainerUndefniedKeyError,
+      );
     });
   });
 

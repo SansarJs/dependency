@@ -13,7 +13,8 @@ export class Container {
       this.#values.set(key, value);
       return this.#values.get(key) as T;
     }
-    throw -1;
+
+    throw new ContainerUndefniedKeyError(key);
   }
 
   register<T>(key: Class<Token<T>>, provider: Provider<T>): this;
@@ -38,6 +39,11 @@ export type Provider<T = unknown> =
   | { value: T };
 
 export abstract class ContainerError extends Error {}
+export class ContainerUndefniedKeyError extends ContainerError {
+  constructor(key: Class, options?: { cause?: unknown }) {
+    super(`Undefined key registration error: ${key.name}`, options);
+  }
+}
 export class ContainerDuplicateKeyError extends ContainerError {
   constructor(key: Class, options?: { cause?: unknown }) {
     super(`Duplicate key registration error: ${key.name}`, options);
