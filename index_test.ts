@@ -127,6 +127,16 @@ describe("Container", () => {
         ).get(DateToken),
       ).toBeInstanceOf(Date);
     });
+
+    it("cache resolved value at definition level of container hierarchy", () => {
+      const root = new Container();
+      const parent = new Container(root);
+      const container = new Container(parent);
+      parent.register(Date, { resolver: () => new Date() });
+
+      expect(() => root.get(Date)).toThrow(ContainerUndefniedKeyError);
+      expect(parent.get(Date)).toBe(container.get(Date));
+    });
   });
 
   describe("register(key, { value })", () => {
