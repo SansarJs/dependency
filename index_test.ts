@@ -109,6 +109,24 @@ describe("Container", () => {
         ContainerUndefniedKeyError,
       );
     });
+
+    it("fallback to parent container if any", () => {
+      class DateToken extends Token<Date> {}
+      const [then, now] = [new Date(), new Date()];
+      expect(
+        new Container(new Container().register(Date, { value: now })).get(Date),
+      ).toBe(now);
+      expect(
+        new Container(
+          new Container().register(Date, { resolver: () => then }),
+        ).get(Date),
+      ).toBe(then);
+      expect(
+        new Container(
+          new Container().register(DateToken, { generator: () => new Date() }),
+        ).get(DateToken),
+      ).toBeInstanceOf(Date);
+    });
   });
 
   describe("register(key, { value })", () => {
