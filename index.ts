@@ -1,40 +1,4 @@
 /**
- * This module exposes APIs for a dependency container toolbox.
- *
- * @see {@link Token}
- * @see {@link Container}
- *
- * @example
- * ```ts
- * import {Container, Token} from "@sansar/dependency";
- *
- * class PostgresPort extends Token<number> {}
- * class PostgresConnexion extends Token<{}> {} // some conexion API
- *
- * const container = new Container()
- *  .register(PostgresPort, { value: 5432 })
- *
- *  // the resolver will return some expensive postgres connexion object
- *  .register(PostgresConnexion, { resolver: () => ({}) })
- *
- *  // Date is just a normal class (as in nothing to do with Token)
- *  .register(Date, { generator: () => new Date() });
- *
- * container.get(PostgresPort); // 5432
- * container.get(PostgresPort); // 5432
- *
- * container.get(PostgresConnexion); // the initial postgres connexion
- * container.get(PostgresConnexion); // the exact same, initial, postgres connexion
- *
- * container.get(Date); // a date
- * container.get(Date); // another date
- * container.get(Date); // yet another date
- * ```
- *
- * @module
- */
-
-/**
  * A container for:
  *
  * + dependency definition: see {@link Container.register}
