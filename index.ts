@@ -30,6 +30,7 @@ export class Container {
    *   the said value
    * + If the definition is a `generator`, then invoke and return
    *   the invocation result
+   * + If the container has a parent, fallback to its parent
    * + Otherwise, throw a {@link ContainerUndefinedKeyError}
    *
    * @param key the key to retrieve a dependency value from the {@link Container}

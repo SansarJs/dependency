@@ -24,6 +24,11 @@ Definitions & concepts:
   * a generator to lazily compute a new value, each time: `{resolver: () => T}`
 + **Container**: a class which instances organise dependency definitions, value
   retrieval and caching.
++ **Parent container**: A container can have a parent. Dependency definitions
+  on children hoist that of their ancestors. Similarly, at resolution time,
+  containers are travelled up the tree
+
+Classes:
 
 + `Token`: a base class for identifying values in a container
 + `Container`: the class to contain dependency definitions and cache
@@ -79,6 +84,20 @@ const container = new Container()
 container.get(DbConfig) // get the registered DbConfig
 container.get(DbConfig) // get the registered DbConfig
 container.get(DbConfig) // get the registered DbConfig
+```
+
+Now with a ancestry:
+```ts
+import {Container} from "@sansar/dependency";
+
+const root = new Container();
+const parent = new Container(root);
+const container = new Container(parent);
+
+parent.register(Date, { resolver: () => new Date() });
+
+container.get(Date) === parent.get(Date); // true
+root.get(Date) // throw: ContainerUndefinedKeyError
 ```
 
 ## License
