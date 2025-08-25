@@ -17,7 +17,7 @@ export class Container {
    *
    * @param parent an optional parent container to structure hierarchy.
    */
-  constructor(parent?: Container) {
+  constructor({ parent }: { parent?: Container; scope?: symbol } = {}) {
     this.#parent = parent;
   }
 
@@ -87,7 +87,7 @@ export class Container {
    */
   register<T>(
     key: Class<Token<T>> | Class<T>,
-    provider: { generator: () => T },
+    provider: { generator: () => T; scope?: symbol },
   ): this;
   /**
    * Register a value resolver for the given {@linkcode key}.
@@ -121,7 +121,7 @@ export class Container {
    */
   register<T>(
     key: Class<Token<T>> | Class<T>,
-    provider: { resolver: () => T },
+    provider: { resolver: () => T; scope?: symbol },
   ): this;
 
   /**
@@ -161,6 +161,7 @@ export class Container {
       generator?: () => unknown;
       resolver?: () => unknown;
       value?: unknown;
+      scope?: symbol;
     },
   ): this {
     if (
@@ -169,6 +170,7 @@ export class Container {
       this.#values.has(key)
     )
       throw new ContainerDuplicateKeyError(key);
+
     if ("value" in provider) this.#values.set(key, provider.value);
     if ("resolver" in provider) this.#resolvers.set(key, provider.resolver!);
     if ("generator" in provider) this.#generators.set(key, provider.generator!);
@@ -195,8 +197,31 @@ export class ContainerUndefinedKeyError extends ContainerError {
    * @param key The key with no definition in the {@link Container}.
    * @param options The option for the error, like another cause
    */
-  constructor(key: Class, options?: ErrorOptions) {
+  constructor(
+    readonly key: Class,
+    options?: ErrorOptions,
+  ) {
     super(`Undefined key registration error: ${key.name}`, options);
+  }
+}
+/**
+ * An error thrown when resolving a dependency definiton using a scoped
+ * key but no such scope was found in the {@link Container} tree.
+ *
+ * @class
+ */
+export class ContainerUndefinedScopeError extends ContainerError {
+  /**
+   * Nothing.
+   *
+   * @param scope The scope which already exists in the {@link Container}'s ancestry.
+   * @param options The option for the error, like another cause
+   */
+  constructor(
+    readonly scope: symbol,
+    options?: ErrorOptions,
+  ) {
+    super(`Undefined scope error error: ${String(scope)}`, options);
   }
 }
 /**
@@ -212,8 +237,31 @@ export class ContainerDuplicateKeyError extends ContainerError {
    * @param key The key with existing definition in the {@link Container}.
    * @param options The option for the error, like another cause
    */
-  constructor(key: Class, options?: ErrorOptions) {
+  constructor(
+    readonly key: Class,
+    options?: ErrorOptions,
+  ) {
     super(`Duplicate key registration error: ${key.name}`, options);
+  }
+}
+/**
+ * An error thrown when creating a scoped {@link Container} but the same scope
+ * already exists in its ancestry.
+ *
+ * @class
+ */
+export class ContainerDuplicateScopeError extends ContainerError {
+  /**
+   * Nothing.
+   *
+   * @param scope The scope which already exists in the {@link Container}'s ancestry.
+   * @param options The option for the error, like another cause
+   */
+  constructor(
+    readonly scope: symbol,
+    options?: ErrorOptions,
+  ) {
+    super(`Duplicate scope error: ${String(scope)}`, options);
   }
 }
 

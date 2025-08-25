@@ -3,12 +3,92 @@ import { expect, fn } from "@std/expect";
 
 import {
   Container,
+  ContainerDuplicateScopeError,
   ContainerDuplicateKeyError,
+  ContainerUndefinedScopeError,
   ContainerUndefinedKeyError,
   Token,
 } from "./index.ts";
 
 describe("Container", () => {
+  describe("scoped dependency", () => {
+    it("constructor throw if an ancestor already has the given scope", () => {
+      const scope = Symbol();
+
+      expect(
+        () => new Container({ scope, parent: new Container({ scope }) }),
+      ).toThrow(ContainerDuplicateScopeError);
+    });
+
+    it("resolution throw if scope is missing in container and its ancestry", () => {
+      class A {}
+      class AToken extends Token<A> {}
+      const container = new Container({
+        parent: new Container({ parent: new Container() }),
+      })
+        .register(AToken, { generator: () => new A(), scope: Symbol("AToken") })
+        .register(A, { resolver: () => new A(), scope: Symbol("A") });
+
+      expect(() => container.get(AToken)).toThrow(ContainerUndefinedScopeError);
+      expect(() => container.get(A)).toThrow(ContainerUndefinedScopeError);
+    });
+
+    it("resolve scoped dependency at closest container with matching scope, from invocation (scope ancestor to definition)", () => {
+      const SCOPE = Symbol();
+      const root = new Container();
+      const parent = new Container({ scope: SCOPE, parent: root });
+      const container = new Container({ parent }).register(Date, {
+        resolver: () => new Date(),
+        scope: SCOPE,
+      });
+
+      expect(container.get(Date)).toBe(parent.get(Date));
+      expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);
+    });
+
+    it("resolve scoped dependency at closest container with matching scope, from invocation (scope descendant to definition)", () => {
+      const SCOPE = Symbol();
+      const root = new Container();
+      const parent = new Container({ parent: root }).register(Date, {
+        resolver: () => new Date(),
+        scope: SCOPE,
+      });
+      const container = new Container({ scope: SCOPE, parent });
+
+      expect(container.get(Date)).toBeInstanceOf(Date);
+      expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);
+      expect(() => parent.get(Date)).toThrow(ContainerUndefinedScopeError);
+    });
+
+    it("generate scoped dependency at closest container with matching scope, from invocation (scope ancestor to definition)", () => {
+      const SCOPE = Symbol();
+      const root = new Container();
+      const parent = new Container({ scope: SCOPE, parent: root });
+      const container = new Container({ parent }).register(Date, {
+        generator: () => new Date(),
+        scope: SCOPE,
+      });
+
+      expect(container.get(Date)).toBeInstanceOf(Date);
+      expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);
+      expect(() => parent.get(Date)).toThrow(ContainerUndefinedKeyError);
+    });
+
+    it("generate scoped dependency at closest container with matching scope, from invocation (scope descendant to definition)", () => {
+      const SCOPE = Symbol();
+      const root = new Container();
+      const parent = new Container({ parent: root }).register(Date, {
+        generator: () => new Date(),
+        scope: SCOPE,
+      });
+      const container = new Container({ scope: SCOPE, parent });
+
+      expect(container.get(Date)).toBeInstanceOf(Date);
+      expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);
+      expect(() => parent.get(Date)).toThrow(ContainerUndefinedScopeError);
+    });
+  });
+
   describe("get(key)", () => {
     it("invoke related resolver definition on first time", () => {
       class A {}
@@ -114,24 +194,28 @@ describe("Container", () => {
       class DateToken extends Token<Date> {}
       const [then, now] = [new Date(), new Date()];
       expect(
-        new Container(new Container().register(Date, { value: now })).get(Date),
+        new Container({
+          parent: new Container().register(Date, { value: now }),
+        }).get(Date),
       ).toBe(now);
       expect(
-        new Container(
-          new Container().register(Date, { resolver: () => then }),
-        ).get(Date),
+        new Container({
+          parent: new Container().register(Date, { resolver: () => then }),
+        }).get(Date),
       ).toBe(then);
       expect(
-        new Container(
-          new Container().register(DateToken, { generator: () => new Date() }),
-        ).get(DateToken),
+        new Container({
+          parent: new Container().register(DateToken, {
+            generator: () => new Date(),
+          }),
+        }).get(DateToken),
       ).toBeInstanceOf(Date);
     });
 
     it("cache resolved value at definition level of container hierarchy", () => {
       const root = new Container();
-      const parent = new Container(root);
-      const container = new Container(parent);
+      const parent = new Container({ parent: root });
+      const container = new Container({ parent });
       parent.register(Date, { resolver: () => new Date() });
 
       expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);
