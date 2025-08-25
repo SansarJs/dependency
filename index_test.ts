@@ -4,7 +4,7 @@ import { expect, fn } from "@std/expect";
 import {
   Container,
   ContainerDuplicateKeyError,
-  ContainerUndefniedKeyError,
+  ContainerUndefinedKeyError,
   Token,
 } from "./index.ts";
 
@@ -106,7 +106,7 @@ describe("Container", () => {
 
     it("throw error if no definition exists for given token", () => {
       expect(() => new Container().get(class A {})).toThrow(
-        ContainerUndefniedKeyError,
+        ContainerUndefinedKeyError,
       );
     });
 
@@ -134,7 +134,7 @@ describe("Container", () => {
       const container = new Container(parent);
       parent.register(Date, { resolver: () => new Date() });
 
-      expect(() => root.get(Date)).toThrow(ContainerUndefniedKeyError);
+      expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);
       expect(parent.get(Date)).toBe(container.get(Date));
     });
   });

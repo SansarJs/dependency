@@ -36,7 +36,7 @@ export class Container {
    * @param key the key to retrieve a dependency value from the {@link Container}
    * @returns the value associated to the given {@linkcode key},
    *          from this {@link Container}
-   * @throws {ContainerUndefniedKeyError} if no definition is found.
+   * @throws {ContainerUndefinedKeyError} if no definition is found.
    */
   get<T>(key: Class<Token<T>> | Class<T>): T {
     if (this.#values.has(key)) return this.#values.get(key) as T;
@@ -51,7 +51,7 @@ export class Container {
 
     if (this.#parent) return this.#parent.get(key);
 
-    throw new ContainerUndefniedKeyError(key);
+    throw new ContainerUndefinedKeyError(key);
   }
 
   /**
@@ -188,7 +188,7 @@ export abstract class ContainerError extends Error {}
  *
  * @class
  */
-export class ContainerUndefniedKeyError extends ContainerError {
+export class ContainerUndefinedKeyError extends ContainerError {
   /**
    * Nothing.
    *
