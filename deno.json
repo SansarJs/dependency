@@ -1,6 +1,13 @@
 {
+  "name": "@sansar/dependency",
+  "version": "0.0.1",
+  "exports": {
+    ".": "./index.ts"
+  },
   "tasks": {
-    "dev:test": "deno test --watch"
+    "test:doc": "deno test --doc",
+    "test:dev": "deno test --watch",
+    "lint:doc": "deno doc --lint index.ts"
   },
   "imports": {
     "@std/expect": "jsr:@std/expect@^1.0.17",
