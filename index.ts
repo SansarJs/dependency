@@ -10,6 +10,16 @@ export class Container {
   readonly #generators = new WeakMap<Class, () => unknown>();
   readonly #resolvers = new WeakMap<Class, () => unknown>();
   readonly #values = new WeakMap<Class, unknown>();
+  readonly #parent?: Container;
+
+  /**
+   * A container constructor.
+   *
+   * @param parent an optional parent container to structure hierarchy.
+   */
+  constructor(parent?: Container) {
+    this.#parent = parent;
+  }
 
   /**
    * Resolve a value associated with a token or fail trying.
@@ -37,6 +47,8 @@ export class Container {
       this.#values.set(key, value);
       return this.#values.get(key) as T;
     }
+
+    if (this.#parent) return this.#parent.get(key);
 
     throw new ContainerUndefniedKeyError(key);
   }
