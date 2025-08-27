@@ -10,15 +10,25 @@ export class Container {
   readonly #generators = new WeakMap<Class, () => unknown>();
   readonly #resolvers = new WeakMap<Class, () => unknown>();
   readonly #values = new WeakMap<Class, unknown>();
+  readonly #scopes = new WeakMap<Class, symbol>();
   readonly #parent?: Container;
+  readonly #scope?: symbol;
 
   /**
    * A container constructor.
    *
    * @param parent an optional parent container to structure hierarchy.
    */
-  constructor({ parent }: { parent?: Container; scope?: symbol } = {}) {
+  constructor({ parent, scope }: { parent?: Container; scope?: symbol } = {}) {
+    if (scope) {
+      let scoped = parent;
+      while (scoped)
+        if (scoped.#scope === scope)
+          throw new ContainerDuplicateScopeError(scope);
+        else scoped = scoped.#parent;
+    }
     this.#parent = parent;
+    this.#scope = scope;
   }
 
   /**
@@ -39,17 +49,30 @@ export class Container {
    * @throws {ContainerUndefinedKeyError} if no definition is found.
    */
   get<T>(key: Class<Token<T>> | Class<T>): T {
+    return this.#get(key, this);
+  }
+
+  #get<T>(key: Class<Token<T>> | Class<T>, invocation: Container): T {
     if (this.#values.has(key)) return this.#values.get(key) as T;
 
+    const scope = this.#scopes.get(key);
+    let scoped: Container | undefined = invocation;
+    if (scope) {
+      while (scoped && scope !== scoped.#scope) scoped = scoped.#parent;
+      if (!scoped) throw new ContainerUndefinedScopeError(scope);
+    }
+    if (scoped && scoped.#values.has(key)) return scoped.#values.get(key) as T;
+
+    scoped = scope ? (scoped ?? this) : this;
     if (this.#generators.has(key)) return this.#generators.get(key)!() as T;
 
     if (this.#resolvers.has(key)) {
       const value = this.#resolvers.get(key)!();
-      this.#values.set(key, value);
-      return this.#values.get(key) as T;
+      scoped.#values.set(key, value);
+      return scoped.#values.get(key) as T;
     }
 
-    if (this.#parent) return this.#parent.get(key);
+    if (this.#parent) return this.#parent.#get(key, invocation);
 
     throw new ContainerUndefinedKeyError(key);
   }
@@ -174,6 +197,13 @@ export class Container {
     if ("value" in provider) this.#values.set(key, provider.value);
     if ("resolver" in provider) this.#resolvers.set(key, provider.resolver!);
     if ("generator" in provider) this.#generators.set(key, provider.generator!);
+
+    if (
+      ("resolver" in provider || "generator" in provider) &&
+      "scope" in provider
+    )
+      this.#scopes.set(key, provider.scope!);
+
     return this;
   }
 }
