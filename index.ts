@@ -27,6 +27,16 @@ export function Inject<T extends ({ (): Class } | Class)[]>(...tokens: T) {
   return function (_: Class<unknown, Args<T>>, ctx: ClassDecoratorContext) {};
 }
 
+export class InjectError extends ScopeError {}
+export class InjectDuplicationError extends InjectError {
+  constructor(
+    readonly ctor: Class,
+    options?: ErrorOptions,
+  ) {
+    super(`@Inject() is already applied on ${ctor}.`, options);
+  }
+}
+
 export type Args<T, A extends unknown[] = []> = T extends [
   () => Class<Token<infer I>>,
   ...infer R,

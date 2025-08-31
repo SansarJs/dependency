@@ -12,6 +12,7 @@ import {
   ScopeDuplicationError,
   ScopeInjectUsageError,
   Inject,
+  InjectDuplicationError,
 } from "./index.ts";
 
 describe("@Scope(scope)", () => {
@@ -37,6 +38,16 @@ describe("@Scope(scope)", () => {
       @Inject()
       class _ {}
     }).toThrow(ScopeDuplicationError);
+  });
+});
+
+describe("@Inject(...tokens)", () => {
+  it("throw when repeated", () => {
+    expect(() => {
+      @Inject()
+      @Inject()
+      class _ {}
+    }).toThrow(InjectDuplicationError);
   });
 });
 
