@@ -1,3 +1,57 @@
+export function Scope(scope: symbol) {
+  return function (_: Class, ctx: ClassDecoratorContext) {};
+}
+
+export class ScopeError extends Error {}
+export class ScopeInjectUsageError extends ScopeError {
+  constructor(
+    readonly ctor: Class,
+    options?: ErrorOptions,
+  ) {
+    super(
+      `@Scope() is applied without or after @Inject(), on ${ctor}.`,
+      options,
+    );
+  }
+}
+export class ScopeDuplicationError extends ScopeError {
+  constructor(
+    readonly ctor: Class,
+    options?: ErrorOptions,
+  ) {
+    super(`@Scope() is already applied on ${ctor}`, options);
+  }
+}
+
+export function Inject<T extends ({ (): Class } | Class)[]>(...tokens: T) {
+  return function (_: Class<unknown, Args<T>>, ctx: ClassDecoratorContext) {};
+}
+
+export type Args<T, A extends unknown[] = []> = T extends [
+  () => Class<Token<infer I>>,
+  ...infer R,
+]
+  ? Args<R, [...A, I]>
+  : T extends [() => Class<Boolean>, ...infer R]
+    ? Args<R, [...A, boolean]>
+    : T extends [() => Class<Number>, ...infer R]
+      ? Args<R, [...A, number]>
+      : T extends [() => Class<String>, ...infer R]
+        ? Args<R, [...A, string]>
+        : T extends [() => Class<infer I>, ...infer R]
+          ? Args<R, [...A, I]>
+          : T extends [Class<Token<infer I>>, ...infer R]
+            ? Args<R, [...A, I]>
+            : T extends [Class<Boolean>, ...infer R]
+              ? Args<R, [...A, boolean]>
+              : T extends [Class<Number>, ...infer R]
+                ? Args<R, [...A, number]>
+                : T extends [Class<String>, ...infer R]
+                  ? Args<R, [...A, string]>
+                  : T extends [Class<infer I>, ...infer R]
+                    ? Args<R, [...A, I]>
+                    : A;
+
 /**
  * A container for:
  *

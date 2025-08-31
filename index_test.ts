@@ -8,7 +8,37 @@ import {
   ContainerUndefinedScopeError,
   ContainerUndefinedKeyError,
   Token,
+  Scope,
+  ScopeDuplicationError,
+  ScopeInjectUsageError,
+  Inject,
 } from "./index.ts";
+
+describe("@Scope(scope)", () => {
+  it("throw when used without @Inject(...tokens)", () => {
+    expect(() => {
+      @Scope(Symbol())
+      class _ {}
+    }).toThrow(ScopeInjectUsageError);
+  });
+
+  it("throw when used after @Inject(...tokens)", () => {
+    expect(() => {
+      @Inject()
+      @Scope(Symbol())
+      class _ {}
+    }).toThrow(ScopeInjectUsageError);
+  });
+
+  it("throw when repeated", () => {
+    expect(() => {
+      @Scope(Symbol())
+      @Scope(Symbol())
+      @Inject()
+      class _ {}
+    }).toThrow(ScopeDuplicationError);
+  });
+});
 
 describe("Container", () => {
   describe("scoped dependency", () => {
