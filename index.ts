@@ -96,16 +96,6 @@ export class Container {
    *
    * @example
    * ```ts
-   * import { Container } from "@sansar/dependency";
-   *
-   * class TemplateEngine {}
-   *
-   * const container = new Container()
-   *   .register(TemplateEngine, { generator: () => new TemplateEngine() });
-   * ```
-   *
-   * @example
-   * ```ts
    * import { Container, Token } from "@sansar/dependency";
    *
    * class Seed extends Token<number> {}
@@ -119,7 +109,77 @@ export class Container {
    *         definition on this container
    */
   register<T>(
-    key: Class<Token<T>> | Class<T>,
+    key: Class<Token<T>>,
+    provider: { generator: () => T; scope?: symbol },
+  ): this;
+  /**
+   * Register a value resolver for the given {@linkcode key}.
+   *
+   * Dependencies provided through a resolver are, resolved the first time
+   * they are requested, and cached. So two requests will return identical.
+   *
+   * @example
+   * ```ts
+   * import { Container, Token } from "@sansar/dependency";
+   *
+   * class Seed extends Token<number> {}
+   *
+   * const container = new Container()
+   *   .register(Seed, { resolver: Math.random });
+   * ```
+   *
+   * @returns the {@link Container} instance on which the method is invoked
+   * @throws {ContainerDuplicateKeyError} if the key is already matched to a
+   *         definition on this container
+   */
+  register<T>(
+    key: Class<Token<T>>,
+    provider: { resolver: () => T; scope?: symbol },
+  ): this;
+  /**
+   * Register a settled value for the given {@linkcode key}.
+   *
+   * Dependencies provided through a value are cached as is and returned each
+   * time they are requested.
+   *
+   * @example
+   * ```ts
+   * import { Container, Token } from "@sansar/dependency";
+   *
+   * class Seed extends Token<number> {}
+   *
+   * const container = new Container()
+   *   .register(Seed, { value: Math.random() });
+   * ```
+   *
+   * @returns the {@link Container} instance on which the method is invoked
+   * @throws {ContainerDuplicateKeyError} if the key is already matched to a
+   *         definition on this container
+   */
+  register<T>(key: Class<Token<T>>, provider: { value: T }): this;
+  /**
+   * Register a value generator for the given {@linkcode key}.
+   *
+   * Dependencies provided through a generator are, well, generated
+   * each time they are requested. So two requests might well be distinct
+   * values.
+   *
+   * @example
+   * ```ts
+   * import { Container } from "@sansar/dependency";
+   *
+   * class TemplateEngine {}
+   *
+   * const container = new Container()
+   *   .register(TemplateEngine, { generator: () => new TemplateEngine() });
+   * ```
+   *
+   * @returns the {@link Container} instance on which the method is invoked
+   * @throws {ContainerDuplicateKeyError} if the key is already matched to a
+   *         definition on this container
+   */
+  register<T>(
+    key: Class<T>,
     provider: { generator: () => T; scope?: symbol },
   ): this;
   /**
@@ -138,25 +198,14 @@ export class Container {
    *   .register(TemplateEngine, { resolver: () => new TemplateEngine() });
    * ```
    *
-   * @example
-   * ```ts
-   * import { Container, Token } from "@sansar/dependency";
-   *
-   * class Seed extends Token<number> {}
-   *
-   * const container = new Container()
-   *   .register(Seed, { resolver: Math.random });
-   * ```
-   *
    * @returns the {@link Container} instance on which the method is invoked
    * @throws {ContainerDuplicateKeyError} if the key is already matched to a
    *         definition on this container
    */
   register<T>(
-    key: Class<Token<T>> | Class<T>,
+    key: Class<T>,
     provider: { resolver: () => T; scope?: symbol },
   ): this;
-
   /**
    * Register a settled value for the given {@linkcode key}.
    *
@@ -173,21 +222,11 @@ export class Container {
    *   .register(TemplateEngine, { value: new TemplateEngine() });
    * ```
    *
-   * @example
-   * ```ts
-   * import { Container, Token } from "@sansar/dependency";
-   *
-   * class Seed extends Token<number> {}
-   *
-   * const container = new Container()
-   *   .register(Seed, { value: Math.random() });
-   * ```
-   *
    * @returns the {@link Container} instance on which the method is invoked
    * @throws {ContainerDuplicateKeyError} if the key is already matched to a
    *         definition on this container
    */
-  register<T>(key: Class<Token<T>> | Class<T>, provider: { value: T }): this;
+  register<T>(key: Class<T>, provider: { value: T }): this;
   register(
     key: Class,
     provider: {
