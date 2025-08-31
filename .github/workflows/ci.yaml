@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   ci:
@@ -33,7 +34,6 @@ jobs:
         NEW_VERSION="$(jq -r '.version' deno.json)"
         if ! curl -fs "https://jsr.io/@sansar/dependency/${NEW_VERSION}_meta.json" &>/dev/null; then
           echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV;
-          tar -czf sansar-dependency.tar.gz .
         fi
 
     - name: Tag & Release
@@ -43,8 +43,6 @@ jobs:
         generate_release_notes: false
         tag_name: v${{ env.NEW_VERSION }}
         body_path: README.md
-        files: |
-          sansar-dependency.tar.gz
         prerelease: false
         draft: false
 
