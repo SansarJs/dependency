@@ -47,3 +47,7 @@ jobs:
           sansar-dependency.tar.gz
         prerelease: false
         draft: false
+
+    - name: Publish
+      if: ${{ env.NEW_VERSION != '' && github.event_name == 'push' }}
+      run: deno publish
