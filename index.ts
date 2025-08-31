@@ -1,8 +1,8 @@
 /**
  * A container for:
  *
- * + dependency definition: see {@link Container.register}
- * + dependency retrieval: see {@link Container.get}
+ * + dependency definition: see {@link Container#register}
+ * + dependency retrieval: see {@link Container#get}
  *
  * @class
  */
