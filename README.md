@@ -27,6 +27,9 @@ Definitions & concepts:
 + **Parent container**: A container can have a parent. Dependency definitions
   on children hoist that of their ancestors. Similarly, at resolution time,
   containers are travelled up the tree
+* **Scope**: an optional, unique tag for some containers, that force them as the
+  layers to evaluate and eventually cache scoped resolver- and generator-based
+  dependency definitions.
 
 Classes:
 
@@ -97,7 +100,44 @@ const container = new Container(parent);
 parent.register(Date, { resolver: () => new Date() });
 
 container.get(Date) === parent.get(Date); // true
-root.get(Date) // throw: ContainerUndefinedKeyError
+// root.get(Date) // throw: ContainerUndefinedKeyError
+```
+
+A scope with downstream definition:
+```ts
+import {Container} from "@sansar/dependency";
+
+const MATH = Symbol('MATH');
+const root = new Container();
+const parent = new Container({scope: MATH, parent: root});
+const container = new Container(parent);
+
+container.register(Number, { scope: MATH, resolver: () => -1 });
+
+// root.get(Number); // throw: ContainerUndefinedKeyError --------|
+// parent.get(Number); // throw: ContainerUndefinedKeyError ---|  |
+container.get(Number); // -1                                   |  |
+parent.get(Number); // -1 -------------------------------------|  |
+// root.get(Number); // throw: ContainerUndefinedKeyError --------|
+```
+
+A scope with upstream definition:
+```ts
+import {Container} from "@sansar/dependency";
+
+const MATH = Symbol('MATH');
+const root = new Container();
+const parent = new Container({scope: MATH, parent: root});
+const container = new Container(parent);
+
+const values = [-1, 0, 1]
+root.register(Number, { scope: MATH, resolver: () => values.shift() });
+
+// root.get(Number); // throw: ContainerUndefinedScopeError ----|
+parent.get(Number); // -1 -----------------------------------|  |
+container.get(Number); // -1                                 |  |
+parent.get(Number); // -1 -----------------------------------|  |
+// root.get(Number); // throw: ContainerUndefinedScopeError ----|
 ```
 
 ## License
