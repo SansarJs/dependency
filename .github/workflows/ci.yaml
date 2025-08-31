@@ -33,9 +33,17 @@ jobs:
         NEW_VERSION="$(jq -r '.version' deno.json)"
         if ! curl -fs "https://jsr.io/@sansar/dependency/${NEW_VERSION}_meta.json" &>/dev/null; then
           echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV;
+          tar -czf sansar-dependency.tar.gz .
         fi
 
     - name: Tag & Release
       if: ${{ env.NEW_VERSION != '' }}
-      run: |
-        echo "new version for release... ${{ env.NEW_VERSION }}"
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: false
+        tag_name: v${{ env.NEW_VERSION }}
+        body_path: README.md
+        files: |
+          sansar-dependency.tar.gz
+        prerelease: false
+        draft: false
