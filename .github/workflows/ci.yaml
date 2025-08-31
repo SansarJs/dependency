@@ -1,0 +1,41 @@
+name: "@sansar/dependency CI"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install Deno
+      uses: denoland/setup-deno@v2
+
+    - name: Source Code Lint
+      run: deno lint
+
+    - name: Documentation Lint
+      run: deno doc --lint index.ts
+
+    - name: Source Code & README.md Tests
+      run: deno test --doc
+
+    - name: Check New Version for Release
+      run: |
+        NEW_VERSION="$(jq -r '.version' deno.json)"
+        if ! curl -fs "https://jsr.io/@std/expect/${NEW_VERSION}_meta.json" &>/dev/null; then
+          echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV;
+        fi
+
+    - name: Tag & Release
+      if: "${{ env.NEW_VERSION }}"
+      run: |
+        echo 'new version for release...'
