@@ -23,9 +23,7 @@ describe("Container", () => {
     it("resolution throw if scope is missing in container and its ancestry", () => {
       class A {}
       class AToken extends Token<A> {}
-      const container = new Container({
-        parent: new Container({ parent: new Container() }),
-      })
+      const container = new Container(new Container(new Container()))
         .register(AToken, { generator: () => new A(), scope: Symbol("AToken") })
         .register(A, { resolver: () => new A(), scope: Symbol("A") });
 
@@ -37,7 +35,7 @@ describe("Container", () => {
       const SCOPE = Symbol();
       const root = new Container();
       const parent = new Container({ scope: SCOPE, parent: root });
-      const container = new Container({ parent }).register(Date, {
+      const container = new Container(parent).register(Date, {
         resolver: () => new Date(),
         scope: SCOPE,
       });
@@ -49,7 +47,7 @@ describe("Container", () => {
     it("resolve scoped dependency at closest container with matching scope, from invocation (scope descendant to definition)", () => {
       const SCOPE = Symbol();
       const root = new Container();
-      const parent = new Container({ parent: root }).register(Date, {
+      const parent = new Container(root).register(Date, {
         resolver: () => new Date(),
         scope: SCOPE,
       });
@@ -64,7 +62,7 @@ describe("Container", () => {
       const SCOPE = Symbol();
       const root = new Container();
       const parent = new Container({ scope: SCOPE, parent: root });
-      const container = new Container({ parent }).register(Date, {
+      const container = new Container(parent).register(Date, {
         generator: () => new Date(),
         scope: SCOPE,
       });
@@ -77,7 +75,7 @@ describe("Container", () => {
     it("generate scoped dependency at closest container with matching scope, from invocation (scope descendant to definition)", () => {
       const SCOPE = Symbol();
       const root = new Container();
-      const parent = new Container({ parent: root }).register(Date, {
+      const parent = new Container(root).register(Date, {
         generator: () => new Date(),
         scope: SCOPE,
       });
@@ -194,28 +192,26 @@ describe("Container", () => {
       class DateToken extends Token<Date> {}
       const [then, now] = [new Date(), new Date()];
       expect(
-        new Container({
-          parent: new Container().register(Date, { value: now }),
-        }).get(Date),
+        new Container(new Container().register(Date, { value: now })).get(Date),
       ).toBe(now);
       expect(
-        new Container({
-          parent: new Container().register(Date, { resolver: () => then }),
-        }).get(Date),
+        new Container(
+          new Container().register(Date, { resolver: () => then }),
+        ).get(Date),
       ).toBe(then);
       expect(
-        new Container({
-          parent: new Container().register(DateToken, {
+        new Container(
+          new Container().register(DateToken, {
             generator: () => new Date(),
           }),
-        }).get(DateToken),
+        ).get(DateToken),
       ).toBeInstanceOf(Date);
     });
 
     it("cache resolved value at definition level of container hierarchy", () => {
       const root = new Container();
-      const parent = new Container({ parent: root });
-      const container = new Container({ parent });
+      const parent = new Container(root);
+      const container = new Container(parent);
       parent.register(Date, { resolver: () => new Date() });
 
       expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);

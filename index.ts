@@ -17,9 +17,19 @@ export class Container {
   /**
    * A container constructor.
    *
-   * @param parent an optional parent container to structure hierarchy.
+   * @param parent an optional parent {@link Container} or configuration object
+   *        with optional parent {@link Container} and scope {@link symbol}.
    */
-  constructor({ parent, scope }: { parent?: Container; scope?: symbol } = {}) {
+  constructor(
+    parentOrConfig?: Container | { parent?: Container; scope?: symbol },
+  ) {
+    const parent =
+      parentOrConfig instanceof Container
+        ? parentOrConfig
+        : parentOrConfig?.parent;
+    const scope =
+      parentOrConfig instanceof Container ? void 0 : parentOrConfig?.scope;
+
     if (scope) {
       let scoped = parent;
       while (scoped)
