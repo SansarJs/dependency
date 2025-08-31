@@ -327,6 +327,9 @@ export class Token<T = unknown> {
   }
 }
 
-type Class<T = unknown, A extends unknown[] = unknown[]> = {
+/**
+ * Capture constructor signature.
+ */
+export type Class<T = unknown, A extends unknown[] = unknown[]> = {
   new (...args: A): T;
 };
