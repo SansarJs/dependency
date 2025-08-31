@@ -37,8 +37,8 @@ jobs:
         fi
 
     - name: Tag & Release
-      if: ${{ env.NEW_VERSION != '' }}
       uses: softprops/action-gh-release@v2
+      if: ${{ env.NEW_VERSION != '' && github.event_name == 'push' }}
       with:
         generate_release_notes: false
         tag_name: v${{ env.NEW_VERSION }}
