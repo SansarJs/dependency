@@ -140,9 +140,14 @@ describe("@Inject(...tokens)", () => {
     } catch (error) {
       err = error as InjectCircularDependencyError;
     }
-    expect(err?.dependency).toBe(C);
     expect(err?.target).toBe(A);
-    expect(err?.index).toBe(1);
+    expect(err?.chain).toHaveLength(4);
+    expect(err?.chain).toEqual([
+      { target: A },
+      { index: 1, target: B },
+      { index: 0, target: C },
+      { index: 0, target: A },
+    ]);
   });
 });
 

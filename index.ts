@@ -44,13 +44,12 @@ export function Inject<T extends ({ (): Class } | Class)[]>(...tokens: T) {
 export class InjectError extends ScopeError {}
 export class InjectCircularDependencyError extends InjectError {
   constructor(
-    readonly dependency: Class,
+    readonly chain: { index?: number; target: Class }[],
     readonly target: Class,
-    readonly index: number,
     options?: ErrorOptions,
   ) {
     super(
-      `Circular dependencies detected while resolving dependency #${index} of #${target}`,
+      `Circular dependencies detected while resolving dependencies of #${target}`,
       options,
     );
   }
@@ -169,26 +168,85 @@ export class Container {
   #get<T>(key: Class<Token<T>> | Class<T>, invocation: Container): T {
     if (this.#values.has(key)) return this.#values.get(key) as T;
 
-    const scope = this.#scopes.get(key);
-    let scoped: Container | undefined = invocation;
-    if (scope) {
-      while (scoped && scope !== scoped.#scope) scoped = scoped.#parent;
-      if (!scoped) throw new ContainerUndefinedScopeError(scope);
+    if (this.#generators.has(key)) {
+      const scope = this.#scopes.get(key);
+      const _scoped = scope ? invocation.#scoped(scope) : this;
+      return this.#generators.get(key)!() as T;
     }
-    if (scoped && scoped.#values.has(key)) return scoped.#values.get(key) as T;
-
-    scoped = scope ? (scoped ?? this) : this;
-    if (this.#generators.has(key)) return this.#generators.get(key)!() as T;
 
     if (this.#resolvers.has(key)) {
-      const value = this.#resolvers.get(key)!();
+      const scope = this.#scopes.get(key);
+      const scoped = scope ? invocation.#scoped(scope) : this;
+      const value = this.#resolvers.get(key)!() as T;
+
       scoped.#values.set(key, value);
-      return scoped.#values.get(key) as T;
+      return value;
     }
 
     if (this.#parent) return this.#parent.#get(key, invocation);
+    if (injects.has(key)) {
+      // Detect & handle circular dependencies
+      if (invocation.#creating.some(({ target }) => key === target)) {
+        const chain = invocation.#creating.map((_) => ({
+          ..._,
+          target: _.target ?? key,
+        }));
+        invocation.#creating.splice(0);
+        throw new InjectCircularDependencyError(chain, key);
+      }
+
+      let value: T;
+      const args: unknown[] = [];
+      const tokens = injects.get(key)!;
+
+      // Register the target (should be first) in #creating)
+      if (!invocation.#creating.length)
+        invocation.#creating.push({ target: key });
+      else if (!invocation.#creating.at(-1)?.target)
+        invocation.#creating.at(-1)!.target = key;
+
+      for (let i = 0, l = tokens.length; i < l; i++) {
+        const token =
+          false ===
+          Reflect.getOwnPropertyDescriptor(tokens[i], "prototype")?.writable
+            ? (tokens[i] as Class)
+            : (tokens[i] as () => Class)();
+        // Register the target's dependency
+        invocation.#creating.push({ index: i });
+
+        try {
+          args.push(invocation.#get(token, invocation));
+          invocation.#creating.pop();
+        } catch (err) {
+          invocation.#creating.splice(0);
+
+          if (err instanceof ContainerUndefinedKeyError)
+            throw new InjectMissingDependencyError(token, key, i, {
+              cause: err,
+            });
+          throw err;
+        }
+      }
+
+      try {
+        value = Reflect.construct(key as Class, args) as T;
+      } finally {
+        invocation.#creating.pop();
+      }
+      this.#values.set(key, value);
+      return value as T;
+    }
 
     throw new ContainerUndefinedKeyError(key);
+  }
+  readonly #creating = [] as { target?: Class; index?: number }[];
+
+  #scoped(scope: symbol): Container {
+    let container = this as undefined | Container;
+    while (container && scope !== container.#scope)
+      container = container.#parent;
+    if (!container) throw new ContainerUndefinedScopeError(scope);
+    return container;
   }
 
   /**
