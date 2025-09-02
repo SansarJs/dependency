@@ -12,7 +12,9 @@ import {
   ScopeDuplicationError,
   ScopeInjectUsageError,
   Inject,
+  InjectCircularDependencyError,
   InjectDuplicationError,
+  InjectMissingDependencyError,
 } from "./index.ts";
 
 describe("@Scope(scope)", () => {
@@ -48,6 +50,99 @@ describe("@Inject(...tokens)", () => {
       @Inject()
       class _ {}
     }).toThrow(InjectDuplicationError);
+  });
+
+  it("cause Container#get to resolve an instance", () => {
+    @Inject()
+    class A {}
+
+    expect(new Container().get(A)).toBeInstanceOf(A);
+  });
+
+  it("cause Container#get to resolve an instance, as fallback when no explicit definition is found", () => {
+    @Inject()
+    class A {}
+    class B extends A {}
+
+    const container = new Container().register(A, { resolver: () => new B() });
+    expect(container.get(A)).toBeInstanceOf(B);
+  });
+
+  it("cause Container#get to cache the resolved instance", () => {
+    @Inject()
+    class A {}
+
+    const container = new Container();
+    expect(container.get(A)).toBe(container.get(A));
+  });
+
+  it("cause Container#get to cache the resolved instance, on the root container", () => {
+    @Inject()
+    class A {}
+
+    const root = new Container();
+    const parent = new Container(root);
+    const container = new Container(parent);
+    expect(container.get(A)).toBe(root.get(A));
+    expect(container.get(A)).toBe(parent.get(A));
+  });
+
+  it("cause Container#get to recursively resolve tokens for dependency injection", () => {
+    @Inject()
+    class A {}
+    @Inject(A, () => C)
+    class B {
+      constructor(
+        readonly a: A,
+        readonly c: "C" | "c",
+      ) {}
+    }
+    class C extends Token<"C" | "c"> {}
+
+    const b = new Container().register(C, { generator: (): "C" => "C" }).get(B);
+    expect(b).toBeInstanceOf(B);
+    expect(b.a).toBeInstanceOf(A);
+    expect(b.c).toBe("C");
+  });
+
+  it("cause Container#get to throw if it fail resolving a dependency", () => {
+    @Inject(Number, Date)
+    class A {}
+
+    let err: undefined | InjectMissingDependencyError;
+    const container = new Container().register(Number, { value: Math.PI });
+    expect(() => container.get(A)).toThrow(InjectMissingDependencyError);
+
+    try {
+      container.get(A);
+    } catch (error) {
+      err = error as InjectMissingDependencyError;
+    }
+    expect(err?.dependency).toBe(Date);
+    expect(err?.target).toBe(A);
+    expect(err?.index).toBe(1);
+  });
+
+  it("cause Container#get to throw if it detect circular dependencies", () => {
+    @Inject(Number, () => B)
+    class A {}
+    @Inject(() => C)
+    class B {}
+    @Inject(A)
+    class C {}
+
+    let err: undefined | InjectCircularDependencyError;
+    const container = new Container().register(Number, { value: Math.PI });
+    expect(() => container.get(A)).toThrow(InjectCircularDependencyError);
+
+    try {
+      container.get(A);
+    } catch (error) {
+      err = error as InjectCircularDependencyError;
+    }
+    expect(err?.dependency).toBe(C);
+    expect(err?.target).toBe(A);
+    expect(err?.index).toBe(1);
   });
 });
 

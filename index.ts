@@ -42,6 +42,32 @@ export function Inject<T extends ({ (): Class } | Class)[]>(...tokens: T) {
 }
 
 export class InjectError extends ScopeError {}
+export class InjectCircularDependencyError extends InjectError {
+  constructor(
+    readonly dependency: Class,
+    readonly target: Class,
+    readonly index: number,
+    options?: ErrorOptions,
+  ) {
+    super(
+      `Circular dependencies detected while resolving dependency #${index} of #${target}`,
+      options,
+    );
+  }
+}
+export class InjectMissingDependencyError extends InjectError {
+  constructor(
+    readonly dependency: Class,
+    readonly target: Class,
+    readonly index: number,
+    options?: ErrorOptions,
+  ) {
+    super(
+      `Missing dependency #${index} while resolving dependencies for #${target}`,
+      options,
+    );
+  }
+}
 export class InjectDuplicationError extends InjectError {
   constructor(
     readonly ctor: Class,
@@ -182,13 +208,23 @@ export class Container {
    *   .register(Seed, { generator: Math.random });
    * ```
    *
+   * @example
+   * ```ts
+   * import { Container } from "@sansar/dependency";
+   *
+   * class TemplateEngine {}
+   *
+   * const container = new Container()
+   *   .register(TemplateEngine, { generator: () => new TemplateEngine() });
+   * ```
+   *
    * @returns the {@link Container} instance on which the method is invoked
    * @throws {ContainerDuplicateKeyError} if the key is already matched to a
    *         definition on this container
    */
   register<T>(
-    key: Class<Token<T>>,
-    provider: { generator: () => T; scope?: symbol },
+    key: Class<T>,
+    provider: { generator: () => Arg<T>; scope?: symbol },
   ): this;
   /**
    * Register a value resolver for the given {@linkcode key}.
@@ -206,13 +242,23 @@ export class Container {
    *   .register(Seed, { resolver: Math.random });
    * ```
    *
+   * @example
+   * ```ts
+   * import { Container } from "@sansar/dependency";
+   *
+   * class TemplateEngine {}
+   *
+   * const container = new Container()
+   *   .register(TemplateEngine, { resolver: () => new TemplateEngine() });
+   * ```
+   *
    * @returns the {@link Container} instance on which the method is invoked
    * @throws {ContainerDuplicateKeyError} if the key is already matched to a
    *         definition on this container
    */
   register<T>(
-    key: Class<Token<T>>,
-    provider: { resolver: () => T; scope?: symbol },
+    key: Class<T>,
+    provider: { resolver: () => Arg<T>; scope?: symbol },
   ): this;
   /**
    * Register a settled value for the given {@linkcode key}.
@@ -230,66 +276,6 @@ export class Container {
    *   .register(Seed, { value: Math.random() });
    * ```
    *
-   * @returns the {@link Container} instance on which the method is invoked
-   * @throws {ContainerDuplicateKeyError} if the key is already matched to a
-   *         definition on this container
-   */
-  register<T>(key: Class<Token<T>>, provider: { value: T }): this;
-  /**
-   * Register a value generator for the given {@linkcode key}.
-   *
-   * Dependencies provided through a generator are, well, generated
-   * each time they are requested. So two requests might well be distinct
-   * values.
-   *
-   * @example
-   * ```ts
-   * import { Container } from "@sansar/dependency";
-   *
-   * class TemplateEngine {}
-   *
-   * const container = new Container()
-   *   .register(TemplateEngine, { generator: () => new TemplateEngine() });
-   * ```
-   *
-   * @returns the {@link Container} instance on which the method is invoked
-   * @throws {ContainerDuplicateKeyError} if the key is already matched to a
-   *         definition on this container
-   */
-  register<T>(
-    key: Class<T>,
-    provider: { generator: () => T; scope?: symbol },
-  ): this;
-  /**
-   * Register a value resolver for the given {@linkcode key}.
-   *
-   * Dependencies provided through a resolver are, resolved the first time
-   * they are requested, and cached. So two requests will return identical.
-   *
-   * @example
-   * ```ts
-   * import { Container } from "@sansar/dependency";
-   *
-   * class TemplateEngine {}
-   *
-   * const container = new Container()
-   *   .register(TemplateEngine, { resolver: () => new TemplateEngine() });
-   * ```
-   *
-   * @returns the {@link Container} instance on which the method is invoked
-   * @throws {ContainerDuplicateKeyError} if the key is already matched to a
-   *         definition on this container
-   */
-  register<T>(
-    key: Class<T>,
-    provider: { resolver: () => T; scope?: symbol },
-  ): this;
-  /**
-   * Register a settled value for the given {@linkcode key}.
-   *
-   * Dependencies provided through a value are cached as is and returned each
-   * time they are requested.
-   *
    * @example
    * ```ts
    * import { Container } from "@sansar/dependency";
@@ -304,7 +290,7 @@ export class Container {
    * @throws {ContainerDuplicateKeyError} if the key is already matched to a
    *         definition on this container
    */
-  register<T>(key: Class<T>, provider: { value: T }): this;
+  register<T>(key: Class<T>, provider: { value: Arg<T> }): this;
   register(
     key: Class,
     provider: {
@@ -447,6 +433,16 @@ export class Token<T = unknown> {
 /**
  * Capture constructor signature.
  */
-export type Class<T = unknown, A extends unknown[] = unknown[]> = {
+export type Class<T = unknown, A extends unknown[] = any[]> = {
   new (...args: A): T;
 };
+
+export type Arg<T> = T extends Token<infer I>
+  ? I
+  : T extends Boolean
+    ? boolean
+    : T extends Number
+      ? number
+      : T extends String
+        ? string
+        : T;
