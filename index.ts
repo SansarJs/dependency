@@ -1,7 +1,9 @@
 const scopes = new WeakMap<object, symbol>();
 const injects = new WeakMap<object, ({ (): Class } | Class)[]>();
 
-export function Scope(scope: symbol) {
+export function Scope(
+  scope: symbol,
+): (_: Class, ctx: ClassDecoratorContext) => void {
   return function (_: Class, ctx: ClassDecoratorContext) {
     ctx.addInitializer(function () {
       if (!injects.has(this)) throw new ScopeInjectUsageError(this as Class);
@@ -32,7 +34,9 @@ export class ScopeDuplicationError extends ScopeError {
   }
 }
 
-export function Inject<T extends ({ (): Class } | Class)[]>(...tokens: T) {
+export function Inject<T extends ({ (): Class } | Class)[]>(
+  ...tokens: T
+): (_: Class, ctx: ClassDecoratorContext) => void {
   return function (_: Class<unknown, Args<T>>, ctx: ClassDecoratorContext) {
     ctx.addInitializer(function () {
       if (injects.has(this)) throw new InjectDuplicationError(this as Class);

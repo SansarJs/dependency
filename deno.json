@@ -4,6 +4,14 @@
   "exports": {
     ".": "./index.ts"
   },
+  "lint": {
+    "rules": {
+      "exclude": [
+        "ban-types",
+        "no-explicit-any"
+      ]
+    }
+  },
   "tasks": {
     "test:doc": "deno test --doc",
     "test:dev": "deno test --watch",
