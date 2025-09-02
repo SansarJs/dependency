@@ -1,6 +1,38 @@
 const scopes = new WeakMap<object, symbol>();
 const injects = new WeakMap<object, ({ (): Class } | Class)[]>();
 
+/**
+ * Applied on an @{@link Inject}( ...tokens ) decorated class to mark the scope
+ * on which the target class instance will be cached.
+ *
+ * > It is a Stage 3 EcmaScript-compliant decorator (so not the old
+ * > TypeScript). The distinction is important as there is no `reflect-metadata`
+ * > support for true and full Inversion of COntrol (IoC). So go for the next
+ * > best thing.
+ *
+ * ```ts
+ * import {Container, Inject, Scope} from "@sansar/dependency";
+ *
+ * const HTTP_REQUEST = Symbol("HTTP_REQUEST");
+ *
+ * @Scope( HTTP_REQUEST )
+ * @Inject()
+ * class A {}
+ *
+ * const root = new Container();
+ * const parent = new Container({ scope: HTTP_REQUEST, parent: root });
+ * const container = new Container( parent );
+ *
+ * const a = container.get( A );
+ *
+ * a instanceof A; // true
+ * a === container.get( A ); // true
+ * a === parent.get( A ); // true
+ * // root.get( A ); // throw ContainerUndefinedScopeError
+ * ```
+ *
+ * > **NOTE:** Injected values are cached on the container with matching scope.
+ */
 export function Scope(
   scope: symbol,
 ): (_: Class, ctx: ClassDecoratorContext) => void {
@@ -13,8 +45,25 @@ export function Scope(
   };
 }
 
-export class ScopeError extends Error {}
+/**
+ * A base class for {@link Scope}-related errors.
+ *
+ * @class
+ */
+export abstract class ScopeError extends Error {}
+/**
+ * An error thrown when @{@link Scope}( scope ) is used without or after an
+ * @{@link Inject}( ...token ) decorator.
+ *
+ * @class
+ */
 export class ScopeInjectUsageError extends ScopeError {
+  /**
+   * Nothing.
+   *
+   * @param ctor The class on which @{@link Scope} without @{@link Inject}
+   * @param options The option for the error, like another cause
+   */
   constructor(
     readonly ctor: Class,
     options?: ErrorOptions,
@@ -25,7 +74,20 @@ export class ScopeInjectUsageError extends ScopeError {
     );
   }
 }
+/**
+ * An error thrown when @{@link Scope}( scope ) decorator is applied multiple
+ * on the same class.
+ *
+ * @class
+ */
 export class ScopeDuplicationError extends ScopeError {
+  /**
+   * Nothing.
+   *
+   * @param ctor The class on which @{@link Scope}( scope ) was applied more
+   *             than once
+   * @param options The option for the error, like another cause
+   */
   constructor(
     readonly ctor: Class,
     options?: ErrorOptions,
@@ -34,6 +96,47 @@ export class ScopeDuplicationError extends ScopeError {
   }
 }
 
+/**
+ * A class decorator to capture a class constructor's dependency tokens.
+ *
+ * > It is a Stage 3 EcmaScript-compliant decorator (so not the old
+ * > TypeScript). The distinction is important as there is no `reflect-metadata`
+ * > support for true and full Inversion of COntrol (IoC). So go for the next
+ * > best thing.
+ *
+ * ```ts
+ * import {Container, Inject, Token} from "@sansar/dependency";
+ *
+ * @Inject()
+ * class A {}
+ *
+ * @Inject(A, () => C)
+ * class B {
+ *   constructor(readonly a: A, readonly c: 'C' | 'c') {}
+ * }
+ *
+ * class C extends Token<'C' | 'c'> {}
+ *
+ * const constainer = new Container();
+ * const b = container
+ *   .register( C, (): 'C' => 'C' )
+ *   .get( B );
+ *
+ * b instanceof B; // true
+ * b.a instanceof A; // true
+ * b.a === container.get( A ); // true
+ * 'C' === b.c; // true
+ * b.c === container.get( C ); // true
+ * ```
+ *
+ * > **NOTE:** Unless @{@link Scope}d, injected values
+ * > are cached on the root container.
+ *
+ * @param tokens The tokens ({@link Token} subclasses, any class or an arrow
+ *               function returning the previous, useful for foward
+ *               reference) to resolve dependencies to be injected at
+ *               construction time.
+ */
 export function Inject<T extends ({ (): Class } | Class)[]>(
   ...tokens: T
 ): (_: Class, ctx: ClassDecoratorContext) => void {
@@ -45,8 +148,26 @@ export function Inject<T extends ({ (): Class } | Class)[]>(
   };
 }
 
-export class InjectError extends ScopeError {}
+/**
+ * A base class for {@link Inject}-related errors.
+ *
+ * @class
+ */
+export abstract class InjectError extends ScopeError {}
+/**
+ * An error thrown when {@link Inject}ed class resolution through
+ * {@link Container#get} leads to a chicken-egg situation.
+ *
+ * @class
+ */
 export class InjectCircularDependencyError extends InjectError {
+  /**
+   * Nothing.
+   *
+   * @param chain The list, chicken-to-chicken of the chain leading to circling
+   * @param target The class on which @{@link Inject} was applied
+   * @param options The option for the error, like another cause
+   */
   constructor(
     readonly chain: { index?: number; target: Class }[],
     readonly target: Class,
@@ -58,7 +179,21 @@ export class InjectCircularDependencyError extends InjectError {
     );
   }
 }
+/**
+ * An error thrown when {@link Container#get} resolves an {@link Inject}ed class
+ * is but some dependencies are misisng (no definition found).
+ *
+ * @class
+ */
 export class InjectMissingDependencyError extends InjectError {
+  /**
+   * Nothing.
+   *
+   * @param dependency The missing dependency token
+   * @param target The target class which dependencies were being reasolved
+   * @param index The paramater index of the missing dependency token
+   * @param options The option for the error, like another cause
+   */
   constructor(
     readonly dependency: Class,
     readonly target: Class,
@@ -71,7 +206,19 @@ export class InjectMissingDependencyError extends InjectError {
     );
   }
 }
+/**
+ * An error thrown when @{@link Inject}(...tokens) is
+ * used multiple times on a class.
+ *
+ * @class
+ */
 export class InjectDuplicationError extends InjectError {
+  /**
+   * Nothing.
+   *
+   * @param ctor The class on which @i{@link Inject} was applied more than once
+   * @param options The option for the error, like another cause
+   */
   constructor(
     readonly ctor: Class,
     options?: ErrorOptions,
@@ -80,6 +227,10 @@ export class InjectDuplicationError extends InjectError {
   }
 }
 
+/**
+ * Extract/Resolve a constructor parameter types from a list of token classes or
+ * token resolvers.
+ */
 export type Args<T, A extends unknown[] = []> = T extends [
   () => Class<Token<infer I>>,
   ...infer R,
@@ -114,6 +265,7 @@ export type Args<T, A extends unknown[] = []> = T extends [
  * @class
  */
 export class Container {
+  readonly #creating = [] as { target?: Class; index?: number }[];
   readonly #generators = new WeakMap<Class, () => unknown>();
   readonly #resolvers = new WeakMap<Class, () => unknown>();
   readonly #values = new WeakMap<Class, unknown>();
@@ -243,7 +395,6 @@ export class Container {
 
     throw new ContainerUndefinedKeyError(key);
   }
-  readonly #creating = [] as { target?: Class; index?: number }[];
 
   #scoped(scope: symbol): Container {
     let container = this as undefined | Container;
@@ -499,6 +650,10 @@ export type Class<T = unknown, A extends unknown[] = any[]> = {
   new (...args: A): T;
 };
 
+/**
+ * Extract/Resolve the target type expected from a token, where T is the return
+ * type of a constructor signature.
+ */
 export type Arg<T> = T extends Token<infer I>
   ? I
   : T extends Boolean
