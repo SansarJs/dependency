@@ -1,145 +1,220 @@
-# `@sansar/dependency`
+# @sansar/dependency
 
-A strait forward dependency container in JavaScript, implemented for
-environment agnosis and compliance to web standards.
+A lightweight, TypeScript-native dependency injection (DI) library for modern
+JavaScript environments. It supports inversion of control (IoC) with decorators,
+scoped dependencies, and flexible registration strategies (values, resolvers,
+generators). Built with Stage 3 ECMAScript decorators in mind, it cannot [yet]
+rely on reflect-metadata for true IoC.
 
-```sh
-deno add @sansar/dependency
+
+
+## Features
+
++ **Decorator-Based Injection:** Use `@Inject()` and `@Scope()` for declarative
+  dependency management
++ **Functional Style Providers:** Register dependencies as static values, lazy
+  resolvers, or dynamic generators on `Container`s
++ **Scoped Dependencies:** Cache instances per scope (e.g., request-scoped
+  services)
++ **Circular Dependency Detection:** Automatically detects and throws errors
+  on cycles
++ **Token-Based Abstractions:** Use `Token` subclasses for type-safe abstract
+  dependencies
++ **Hierarchical Containers:** Support nested containers for modular
+  applications
++ **Error Handling:** Descriptive errors for undefined keys, duplicate
+  registrations, missing dependencies, and more
++ **No External Dependencies**
+
+
+
+## Installation
+
+```bash
+# Deno
+deno add jsr:@sansar/dependency
+
+# PNPM
+pnpm i jsr:@sansar/dependency
+
+# YARN
+yarn add jsr:@sansar/dependency
+
+# VLT
+vlt install jsr:@sansar/dependency
+
+# NPM
+npx jsr add @sansar/dependency
+
+# Bun
+bunx jsr add @sansar/dependency
 ```
 
-## API Surface
 
-Definitions & concepts:
 
-+ **Key**: a class they serves to store dependency definition and later
-  retrieve a value from a container. It could be a normal constructor like
-  `Date` or a sub-class of `Token`.
-  > `Token` sub-classes are useful when multiple dependencies share a common
-  > type _(eg.: `StartupDateToken`, `ShutdownDateToken`)_ or, for types that
-  > are not constructor-based _(eg.:
-  > `class ConfigToken extends Token<{value: string, radix?: number}>`)_.
-+ **Provider**: a definition to resolve a dependency value. It could be:
-  + a static value: `{ value: T }`
-  * a resolver to lazily compute the value, once, cached: `{resolver: () => T}`
-  * a generator to lazily compute a new value, each time: `{resolver: () => T}`
-+ **Container**: a class which instances organise dependency definitions, value
-  retrieval and caching.
-+ **Parent container**: A container can have a parent. Dependency definitions
-  on children hoist that of their ancestors. Similarly, at resolution time,
-  containers are travelled up the tree
-* **Scope**: an optional, unique tag for some containers, that force them as the
-  layers to evaluate and eventually cache scoped resolver- and generator-based
-  dependency definitions.
+## Quick Start
 
-Classes:
+### Basic Injection
 
-+ `Token`: a base class for identifying values in a container
-+ `Container`: the class to contain dependency definitions and cache
-  dependencies when applicable
-
-## Usages
-
-Ordinary constructor key, with a generator dependency definition:
+Define and inject dependencies:
 ```ts
-import { Container } from "@sansar/dependency";
+import { Container, Inject } from "@sansar/dependency";
 
-const container = new Container()
-  .register(Date, { generator: () => new Date() });
+@Inject()
+class Logger {
+  log(message: string) {
+    console.log( message );
+  }
+}
 
-// Later
-container.get(Date) // get a date
-container.get(Date) // get another date
-container.get(Date) // get yet another date
+@Inject( Logger )
+class Service {
+  constructor(readonly logger: Logger) {}
+}
+
+const container = new Container();
+const service = container.get( Service );
+
+service.logger.log( "Hello, DI!" ); // Outputs: Hello, DI!
 ```
 
-Contrustor key, with a resolver dependency definition:
+### Using Tokens for Abstractions
+
+Tokens allow injecting interfaces or abstract types:
 ```ts
-import { Container } from "@sansar/dependency";
+import { Container, Inject, Token } from "@sansar/dependency";
 
-class TemplateEngine { /** heavy stuff in here **/ }
+class LogLevel extends Token<"debug" | "info" | "error"> {}
 
-const container = new Container()
-  .register(TemplateEngine, { resolver: () => new TemplateEngine() });
-
-// Later
-container.get(TemplateEngine) // get the template engine (initialized lazily)
-container.get(TemplateEngine) // get the same template engine
-container.get(TemplateEngine) // still the same
-```
-
-Token-based key, with a value dependency definition:
-```ts
-import { Container, Token } from "@sansar/dependency";
-
-class DbConfig extends Token<Record<'uri'|'username'|'password', string>> {
+@Inject( LogLevel )
+class Logger {
+  constructor(readonly level: "debug" | "info" | "error") {}
 }
 
 const container = new Container()
-  .register(DbConfig, {
-    value: {
-      username: '',
-      password: '',
-      uri: 'jdbc://localhost:5432/app'
-    }
-  });
+  .register( LogLevel, { value: "info" } );
+const logger = container.get( Logger );
 
-// Later
-container.get(DbConfig) // get the registered DbConfig
-container.get(DbConfig) // get the registered DbConfig
-container.get(DbConfig) // get the registered DbConfig
+console.log( logger.level ); // Outputs: info
 ```
 
-Now with a ancestry:
+### Scoped Dependencies
+
+Scope instances to specific containers (e.g., per HTTP request):
 ```ts
-import {Container} from "@sansar/dependency";
+import { Container, Inject, Scope } from "@sansar/dependency";
+
+const REQUEST_SCOPE = Symbol("REQUEST");
+
+@Scope( REQUEST_SCOPE )
+@Inject()
+class RequestService {}
 
 const root = new Container();
-const parent = new Container(root);
-const container = new Container(parent);
+const requestContainer = new Container({ scope: REQUEST_SCOPE, parent: root });
+const someOtherContainer = new Container( requestContainer );
 
-parent.register(Date, { resolver: () => new Date() });
+const service1 = someOtherContainer.get( RequestService );
+const service2 = requestContainer.get( RequestService );
 
-container.get(Date) === parent.get(Date); // true
-// root.get(Date) // throw: ContainerUndefinedKeyError
+console.log(service1 === service2); // true (cached in scoped container)
 ```
 
-A scope with downstream definition:
+
+## Concepts
+
+### `Container`
+
+The core class for registering and resolving dependencies.
+
++ Registration:
+  + `register(key, { value })`: Provides a static value.
+  + `register(key, { resolver: () => value })`: Lazily resolves and caches the
+    value.
+  + `register(key, { generator: () => value })`: Generates a new value on each
+    request.
+  + Optional `scope` for scoped _resolver/generator_ caching.
++ Resolution:
+  + `get(key)`: Retrieves the dependency, falling back to parent containers if
+    needed.
+
+> **NOTE:** `Container`s can be nested, forming a hierarchy for modular apps.
+
+### Token
+
+A base class for type-safe tokens. Extend it to represent abstract dependencies:
 ```ts
-import {Container} from "@sansar/dependency";
+import { Token } from "@sansar/dependency";
 
-const MATH = Symbol('MATH');
-const root = new Container();
-const parent = new Container({scope: MATH, parent: root});
-const container = new Container(parent);
-
-container.register(Number, { scope: MATH, resolver: () => -1 });
-
-// root.get(Number); // throw: ContainerUndefinedKeyError --------|
-// parent.get(Number); // throw: ContainerUndefinedKeyError ---|  |
-container.get(Number); // -1                                   |  |
-parent.get(Number); // -1 -------------------------------------|  |
-// root.get(Number); // throw: ContainerUndefinedKeyError --------|
+class DatabaseUrl extends Token<string> {}
 ```
 
-A scope with upstream definition:
+> **NOTE:** `Token`s cannot be instantiated.
+
+### `@Inject(...tokens)`
+
+A class decorator to declare constructor dependencies.
+Supports forward references via arrow functions.
++ Throws `InjectDuplicationError` if applied multiple times.
++ Throws `InjectMissingDependencyError` or `InjectCircularDependencyError` on
+  resolution issues.
+
+### `@Scope(scope: symbol)`
+
+Marks a class for scoped caching. Must be used with @Inject() and applied before
+it.
++ Throws `ScopeDuplicationError` if applied multiple times.
++ Throws `ScopeInjectUsageError` if misused with `@Inject()`.
++ Resolution throws `ContainerUndefinedScopeError` if no matching scope exists.
+
+
+
+## Advanced Usage
+
+### Hierarchical and Scoped Resolution
+
+Dependencies resolve from the invoking container, caching at the appropriate
+level:
 ```ts
-import {Container} from "@sansar/dependency";
+import { Container } from "@sansar/dependency";
 
-const MATH = Symbol('MATH');
-const root = new Container();
-const parent = new Container({scope: MATH, parent: root});
-const container = new Container(parent);
+const APP_SCOPE = Symbol( "APP" );
 
-const values = [-1, 0, 1]
-root.register(Number, { scope: MATH, resolver: () => values.shift()! });
+const root = new Container({ scope: APP_SCOPE });
+root.register( Date, { resolver: () => new Date(), scope: APP_SCOPE } );
 
-// root.get(Number); // throw: ContainerUndefinedScopeError ----|
-parent.get(Number); // -1 -----------------------------------|  |
-container.get(Number); // -1                                 |  |
-parent.get(Number); // -1 -----------------------------------|  |
-// root.get(Number); // throw: ContainerUndefinedScopeError ----|
+const child = new Container( root );
+console.log(child.get( Date ) === root.get(Date)); // true
 ```
+
+### Forward References:
+```ts
+import { Container, Inject } from "@sansar/dependency";
+
+@Inject(() => B)
+class A {
+  constructor(readonly b: B) {}
+}
+
+@Inject()
+class B {}
+
+console.log(new Container().get( A ) instanceof A); // true
+console.log(new Container().get( A ).b instanceof B); // true
+```
+
+
+
+## Contributing
+
+Contributions are welcome! Fork the repository, make changes, and submit a pull
+request. Ensure tests pass and follow the existing code style.
+
+
 
 ## License
 
-[MIT](./LICENSE)
+This project is licensed under the [MIT License](./LICENSE). See LICENSE for
+details.
+
+Copyright (c) 2025 SansarJs
