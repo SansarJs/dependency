@@ -117,9 +117,9 @@ export class ScopeDuplicationError extends ScopeError {
  *
  * class C extends Token<'C' | 'c'> {}
  *
- * const constainer = new Container();
+ * const container = new Container();
  * const b = container
- *   .register( C, (): 'C' => 'C' )
+ *   .register( C, { generator: (): 'C' => 'C' })
  *   .get( B );
  *
  * b instanceof B; // true

@@ -131,7 +131,7 @@ const parent = new Container({scope: MATH, parent: root});
 const container = new Container(parent);
 
 const values = [-1, 0, 1]
-root.register(Number, { scope: MATH, resolver: () => values.shift() });
+root.register(Number, { scope: MATH, resolver: () => values.shift()! });
 
 // root.get(Number); // throw: ContainerUndefinedScopeError ----|
 parent.get(Number); // -1 -----------------------------------|  |
