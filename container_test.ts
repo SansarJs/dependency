@@ -1,5 +1,6 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect, fn } from "@std/expect";
+import { spy } from "@std/testing/mock";
 
 import {
   Container,
@@ -16,6 +17,7 @@ import {
   InjectDuplicationError,
   InjectMissingDependencyError,
 } from "./index.ts";
+import { Context } from "./container.ts";
 
 describe("@Scope(scope)", () => {
   it("throw when used without @Inject(...tokens)", () => {
@@ -177,6 +179,102 @@ describe("@Inject(...tokens)", () => {
 });
 
 describe("Container", () => {
+  describe("disposal", () => {
+    it("propagate to descendants", () => {
+      const root = new Container();
+      const a = new Container(root),
+        b = new Container(root);
+      const a0 = new Container(a),
+        b0 = new Container(b),
+        b1 = new Container(b);
+      const spies = [root, a, a0, b, b0, b1].map((c) => spy(c, Symbol.dispose));
+
+      (() => {
+        using _ = root;
+      })();
+      expect(spies).toHaveLength(6);
+      for (let i = 0, l = spies.length; i < l; i++) {
+        expect(spies[i].calls).toHaveLength(1);
+        expect(spies[i].calls[0].args).toEqual([]);
+      }
+    });
+
+    it("propagate to all dependencies associated with that container, passing the dependency to the dispose hook", () => {
+      class A {
+        [Symbol.dispose]() {
+          spies[0](...arguments);
+        }
+      }
+      class B {
+        [Symbol.dispose]() {
+          spies[1](...arguments);
+        }
+      }
+      @Inject(A, B, () => D)
+      class C {
+        constructor(
+          readonly a: A,
+          readonly b: B,
+          readonly d: D,
+        ) {}
+        [Symbol.dispose]() {
+          spies[2](...arguments);
+        }
+      }
+      class D extends Token<{}> {}
+
+      const container = new Container()
+        .register(A, {
+          generator: (ctx) => {
+            ctx.onDestroy(spies[3]);
+            return new A();
+          },
+          onDestroy() {
+            spies[4](...arguments);
+          },
+        })
+        .register(B, {
+          resolver: (ctx) => {
+            ctx.onDestroy(spies[5]);
+            return new B();
+          },
+          onDestroy() {
+            spies[6](...arguments);
+          },
+        })
+        .register(D, {
+          value: {
+            [Symbol.dispose]() {
+              spies[7](...arguments);
+            },
+          },
+          onDestroy() {
+            spies[8](...arguments);
+          },
+        });
+      const spies = [...Array(9)].map(() => spy());
+
+      const c = container.get(C);
+      (() => {
+        using _ = container;
+      })();
+      for (let i = 0, l = spies.length; i < l; i++)
+        expect(spies[i].calls).toHaveLength(1);
+      for (const [value, spy] of [
+        c.a,
+        c.b,
+        c,
+        c.a,
+        c.a,
+        c.b,
+        c.b,
+        c.d,
+        c.d,
+      ].map((v, i) => [v, spies[i]] as const))
+        expect(spy.calls[0].args).toEqual([value]);
+    });
+  });
+
   describe("scoped dependency", () => {
     it("constructor throw if an ancestor already has the given scope", () => {
       const scope = Symbol();
@@ -382,6 +480,52 @@ describe("Container", () => {
 
       expect(() => root.get(Date)).toThrow(ContainerUndefinedKeyError);
       expect(parent.get(Date)).toBe(container.get(Date));
+    });
+
+    it("pass a context with metadata when invoking resolver and generators", () => {
+      const scope = Symbol();
+      const numberSpy = spy(Math.random);
+      const dateSpy = spy(() => new Date());
+      const root = new Container()
+        .register(Date, {
+          resolver: dateSpy as { (): Date },
+          scope,
+        })
+        .register(Number, { generator: numberSpy as { (): number } });
+      const container = new Container({ scope, parent: root });
+
+      container.get(Number);
+      container.get(Date);
+
+      expect(numberSpy.calls).toHaveLength(1);
+      expect(numberSpy.calls[0].args).toHaveLength(1);
+      expect(numberSpy.calls[0].args.at(0)).toBeInstanceOf(Object);
+      expect(
+        (numberSpy.calls[0].args.at(0) as unknown as Context<unknown>)
+          .invocationContainer,
+      ).toBe(container);
+      expect(
+        (numberSpy.calls[0].args.at(0) as unknown as Context<unknown>)
+          .scopeContainer,
+      ).toBeUndefined();
+      expect(
+        (numberSpy.calls[0].args.at(0) as unknown as Context<unknown>).scope,
+      ).toBeUndefined();
+
+      expect(dateSpy.calls).toHaveLength(1);
+      expect(dateSpy.calls[0].args).toHaveLength(1);
+      expect(dateSpy.calls[0].args.at(0)).toBeInstanceOf(Object);
+      expect(
+        (dateSpy.calls[0].args.at(0) as unknown as Context<unknown>)
+          .invocationContainer,
+      ).toBe(container);
+      expect(
+        (dateSpy.calls[0].args.at(0) as unknown as Context<unknown>)
+          .scopeContainer,
+      ).toBe(container);
+      expect(
+        (dateSpy.calls[0].args.at(0) as unknown as Context<unknown>).scope,
+      ).toBe(scope);
     });
   });
 

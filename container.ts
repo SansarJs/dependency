@@ -1,3 +1,5 @@
+import { getAssertionState } from "jsr:@std/internal@^1.0.10/assertion-state";
+
 const scopes = new WeakMap<object, symbol>();
 const injects = new WeakMap<object, ({ (): Class } | Class)[]>();
 
@@ -265,13 +267,22 @@ export type Args<T, A extends unknown[] = []> = T extends [
  * @class
  */
 export class Container {
+  readonly #generators = new WeakMap<
+    Class,
+    (ctx: Context<unknown>) => unknown
+  >();
+  readonly #resolvers = new WeakMap<
+    Class,
+    (ctx: Context<unknown>) => unknown
+  >();
+  readonly #onDestroyHooks = new WeakMap<Class, { (value: unknown): void }>();
   readonly #creating = [] as { target?: Class; index?: number }[];
-  readonly #generators = new WeakMap<Class, () => unknown>();
-  readonly #resolvers = new WeakMap<Class, () => unknown>();
   readonly #values = new WeakMap<Class, unknown>();
   readonly #scopes = new WeakMap<Class, symbol>();
+  readonly #onDestroy: { (): void }[] = [];
   readonly #parent?: Container;
   readonly #scope?: symbol;
+  #disposed = false;
 
   /**
    * A container constructor.
@@ -296,8 +307,25 @@ export class Container {
           throw new ContainerDuplicateScopeError(scope);
         else scoped = scoped.#parent;
     }
+    if (parent) parent.#onDestroy.push(() => this[Symbol.dispose]());
     this.#parent = parent;
     this.#scope = scope;
+  }
+
+  /**
+   * Dispose of the container and its related dependencies.
+   */
+  [Symbol.dispose]() {
+    this.#disposed = true;
+    for (const onDestroy of this.#onDestroy) onDestroy();
+    this.#onDestroy.splice(0);
+  }
+
+  /**
+   * Disposed status of the container.
+   */
+  get disposed() {
+    return this.#disposed;
   }
 
   /**
@@ -322,20 +350,50 @@ export class Container {
   }
 
   #get<T>(key: Class<Token<T>> | Class<T>, invocation: Container): T {
-    if (this.#values.has(key)) return this.#values.get(key) as T;
+    if (this.#values.has(key)) {
+      const value = this.#values.get(key);
+      // NOTE: no need to check & schedule registered onDestroy hook for {value}
+      if (Container.#isDisposable(value))
+        this.#onDestroy.push(() => value[Symbol.dispose](value));
+
+      return value as T;
+    }
 
     if (this.#generators.has(key)) {
       const scope = this.#scopes.get(key);
-      const _scoped = scope ? invocation.#scoped(scope) : this;
-      return this.#generators.get(key)!() as T;
+      const scoped = scope ? invocation.#scoped(scope) : void 0;
+      const value = this.#generators.get(key)!({
+        onDestroy: (hook) =>
+          (scoped ?? this).#onDestroy.push(() => hook(value)),
+        invocationContainer: invocation,
+        scopeContainer: scoped,
+        scope,
+      }) as T;
+
+      const hook = this.#onDestroyHooks.get(key);
+      if (hook) (scoped ?? this).#onDestroy.push(() => hook(value));
+      if (Container.#isDisposable(value))
+        (scoped ?? this).#onDestroy.push(() => value[Symbol.dispose](value));
+
+      return value;
     }
 
     if (this.#resolvers.has(key)) {
       const scope = this.#scopes.get(key);
-      const scoped = scope ? invocation.#scoped(scope) : this;
-      const value = this.#resolvers.get(key)!() as T;
+      const scoped = scope ? invocation.#scoped(scope) : void 0;
+      const value = this.#resolvers.get(key)!({
+        onDestroy: (hook) =>
+          (scoped ?? this).#onDestroy.push(() => hook(value)),
+        invocationContainer: invocation,
+        scopeContainer: scoped,
+        scope,
+      }) as T;
 
-      scoped.#values.set(key, value);
+      (scoped ?? this).#values.set(key, value);
+      const hook = this.#onDestroyHooks.get(key);
+      if (hook) (scoped ?? this).#onDestroy.push(() => hook(value));
+      if (Container.#isDisposable(value))
+        (scoped ?? this).#onDestroy.push(() => value[Symbol.dispose](value));
       return value;
     }
 
@@ -361,6 +419,7 @@ export class Container {
       else if (!invocation.#creating.at(-1)?.target)
         invocation.#creating.at(-1)!.target = key;
 
+      // Resolve dependencies
       for (let i = 0, l = tokens.length; i < l; i++) {
         const token =
           false ===
@@ -384,6 +443,7 @@ export class Container {
         }
       }
 
+      // Resolve target
       const scoped = scopes.has(key)
         ? invocation.#scoped(scopes.get(key)!)
         : void 0;
@@ -392,11 +452,26 @@ export class Container {
       } finally {
         invocation.#creating.pop();
       }
+
       (scoped ?? this).#values.set(key, value);
+      if (Container.#isDisposable(value))
+        (scoped ?? this).#onDestroy.push(() => value[Symbol.dispose](value));
+
       return value as T;
     }
 
     throw new ContainerUndefinedKeyError(key);
+  }
+
+  static #isDisposable(
+    value: unknown,
+  ): value is { [Symbol.dispose](value: unknown): void } {
+    return (
+      !!value &&
+      "object" === typeof value &&
+      Symbol.dispose in value &&
+      "function" === typeof value[Symbol.dispose]
+    );
   }
 
   #scoped(scope: symbol): Container {
@@ -440,7 +515,11 @@ export class Container {
    */
   register<T>(
     key: Class<T>,
-    provider: { generator: () => Arg<T>; scope?: symbol },
+    provider: {
+      scope?: symbol;
+      onDestroy?: { (value: Arg<T>): void };
+      generator: (ctx: Context<T>) => Arg<T>;
+    },
   ): this;
   /**
    * Register a value resolver for the given {@linkcode key}.
@@ -474,7 +553,11 @@ export class Container {
    */
   register<T>(
     key: Class<T>,
-    provider: { resolver: () => Arg<T>; scope?: symbol },
+    provider: {
+      scope?: symbol;
+      onDestroy?: { (value: Arg<T>): void };
+      resolver: (ctx: Context<T>) => Arg<T>;
+    },
   ): this;
   /**
    * Register a settled value for the given {@linkcode key}.
@@ -506,12 +589,19 @@ export class Container {
    * @throws {ContainerDuplicateKeyError} if the key is already matched to a
    *         definition on this container
    */
-  register<T>(key: Class<T>, provider: { value: Arg<T> }): this;
+  register<T>(
+    key: Class<T>,
+    provider: {
+      value: Arg<T>;
+      onDestroy?: { (value: Arg<T>): void };
+    },
+  ): this;
   register(
     key: Class,
     provider: {
-      generator?: () => unknown;
-      resolver?: () => unknown;
+      generator?: (ctx: Context<unknown>) => unknown;
+      resolver?: (ctx: Context<unknown>) => unknown;
+      onDestroy?: { (value: unknown): void };
       value?: unknown;
       scope?: symbol;
     },
@@ -523,9 +613,14 @@ export class Container {
     )
       throw new ContainerDuplicateKeyError(key);
 
-    if ("value" in provider) this.#values.set(key, provider.value);
+    if ("value" in provider) {
+      this.#values.set(key, provider.value);
+      if (provider.onDestroy)
+        this.#onDestroy.push(() => provider.onDestroy?.(provider.value));
+    }
     if ("resolver" in provider) this.#resolvers.set(key, provider.resolver!);
     if ("generator" in provider) this.#generators.set(key, provider.generator!);
+    if (provider.onDestroy) this.#onDestroyHooks.set(key, provider.onDestroy);
 
     if (
       ("resolver" in provider || "generator" in provider) &&
@@ -644,6 +739,31 @@ export class Token<T = unknown> {
   constructor() {
     throw new Error("Cannot instantiate.");
   }
+}
+
+/**
+ * The context passed to `resolver`s and `generator`s when {@link Container#get}
+ * is invoked.
+ */
+export interface Context<T> {
+  /**
+   * A hook register of hooks for when the container is destroyed.
+   *
+   * @param hook The destruction hook for the container dependency.
+   */
+  onDestroy(hook: (value: T) => void): void;
+  /**
+   * The invocation container.
+   */
+  invocationContainer: Container;
+  /**
+   * The scope container, when scoped.
+   */
+  scopeContainer?: Container;
+  /**
+   * The scope of the dependency, when applicable.
+   */
+  scope?: symbol;
 }
 
 /**
