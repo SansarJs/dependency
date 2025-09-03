@@ -25,13 +25,13 @@ rely on reflect-metadata for true IoC.
 + [x] **Error Handling:** Descriptive errors for undefined keys, duplicate
   registrations, missing dependencies, and more
 + [x] **No External Dependencies**
-+ [_] `Token` default values
-+ [_] Containers as resources and and resources with disposal hooks
-+ [_] Containers as parameters to `resolver` and `generator` definitions
-+ [_] Support a `Configuration` abstraction for defining, importing & excluding
++ [ ] `Token` default values
++ [ ] Containers as resources and and resources with disposal hooks
++ [ ] Containers as parameters to `resolver` and `generator` definitions
++ [ ] Support a `Configuration` abstraction for defining, importing & excluding
   some sets of dependency definitions (think a full set of configuration for
   Redis, Datadog, logging, etc)
-+ [_] Introduce properties, environments, conditional dependency definitions
++ [ ] Introduce properties, environments, conditional dependency definitions
 
 
 
