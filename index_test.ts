@@ -41,6 +41,31 @@ describe("@Scope(scope)", () => {
       class _ {}
     }).toThrow(ScopeDuplicationError);
   });
+
+  it("cause Container#get to throw when no container in the tree exists with that scope", () => {
+    const REQUEST = Symbol("REQUEST");
+
+    @Scope(REQUEST)
+    @Inject()
+    class A {}
+
+    expect(() => new Container().get(A)).toThrow(ContainerUndefinedScopeError);
+  });
+
+  it("cause Container#get to cache the instance on the scoped container in the tree", () => {
+    const REQUEST = Symbol("REQUEST");
+
+    @Scope(REQUEST)
+    @Inject()
+    class A {}
+
+    const root = new Container();
+    const parent = new Container({ scope: REQUEST, parent: root });
+    const container = new Container(parent);
+
+    expect(container.get(A)).toBe(parent.get(A));
+    expect(() => root.get(A)).toThrow(ContainerUndefinedScopeError);
+  });
 });
 
 describe("@Inject(...tokens)", () => {

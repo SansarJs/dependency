@@ -384,12 +384,15 @@ export class Container {
         }
       }
 
+      const scoped = scopes.has(key)
+        ? invocation.#scoped(scopes.get(key)!)
+        : void 0;
       try {
         value = Reflect.construct(key as Class, args) as T;
       } finally {
         invocation.#creating.pop();
       }
-      this.#values.set(key, value);
+      (scoped ?? this).#values.set(key, value);
       return value as T;
     }
 
