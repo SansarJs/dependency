@@ -10,21 +10,29 @@ rely on reflect-metadata for true IoC.
 
 ## Features
 
-+ **Decorator-Based Injection:** Use `@Inject()` and `@Scope()` for declarative
-  dependency management
-+ **Functional Style Providers:** Register dependencies as static values, lazy
-  resolvers, or dynamic generators on `Container`s
-+ **Scoped Dependencies:** Cache instances per scope (e.g., request-scoped
++ [x] **Decorator-Based Injection:** Use `@Inject()` and `@Scope()` for
+  declarative dependency management
++ [x] **Functional Style Providers:** Register dependencies as static values,
+  lazy resolvers, or dynamic generators on `Container`s
++ [x] **Scoped Dependencies:** Cache instances per scope (e.g., request-scoped
   services)
-+ **Circular Dependency Detection:** Automatically detects and throws errors
++ [x] **Circular Dependency Detection:** Automatically detects and throws errors
   on cycles
-+ **Token-Based Abstractions:** Use `Token` subclasses for type-safe abstract
-  dependencies
-+ **Hierarchical Containers:** Support nested containers for modular
++ [x] **Token-Based Abstractions:** Use `Token` subclasses for type-safe
+  abstract dependencies
++ [x] **Hierarchical Containers:** Support nested containers for modular
   applications
-+ **Error Handling:** Descriptive errors for undefined keys, duplicate
++ [x] **Error Handling:** Descriptive errors for undefined keys, duplicate
   registrations, missing dependencies, and more
-+ **No External Dependencies**
++ [x] **No External Dependencies**
++ [_] `Token` default values
++ [_] Containers as resources and and resources with disposal hooks
++ [_] Containers as parameters to `resolver` and `generator` definitions
++ [_] Support a `Configuration` abstraction for defining, importing & excluding
+  some sets of dependency definitions (think a full set of configuration for
+  Redis, Datadog, logging, etc)
++ [_] Introduce properties, environments, conditional dependency definitions
+
 
 
 
