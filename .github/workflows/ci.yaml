@@ -24,7 +24,7 @@ jobs:
       run: deno lint
 
     - name: Documentation Lint
-      run: deno doc --lint index.ts
+      run: deno doc --lint index.ts container.ts
 
     - name: Source Code & README.md Tests
       run: deno test --doc

@@ -15,7 +15,7 @@
   "tasks": {
     "test:doc": "deno test --doc",
     "test:dev": "deno test --watch",
-    "lint:doc": "deno doc --lint index.ts"
+    "lint:doc": "deno doc --lint index.ts container.ts"
   },
   "imports": {
     "@std/expect": "jsr:@std/expect@^1.0.17",
