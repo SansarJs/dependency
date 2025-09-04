@@ -17,7 +17,7 @@ import {
   InjectDuplicationError,
   InjectMissingDependencyError,
 } from "./index.ts";
-import { Context } from "./container.ts";
+import type { Context } from "./container.ts";
 
 describe("@Scope(scope)", () => {
   it("throw when used without @Inject(...tokens)", () => {

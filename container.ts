@@ -1,5 +1,3 @@
-import { getAssertionState } from "jsr:@std/internal@^1.0.10/assertion-state";
-
 const scopes = new WeakMap<object, symbol>();
 const injects = new WeakMap<object, ({ (): Class } | Class)[]>();
 
@@ -324,7 +322,7 @@ export class Container {
   /**
    * Disposed status of the container.
    */
-  get disposed() {
+  get disposed(): boolean {
     return this.#disposed;
   }
 
