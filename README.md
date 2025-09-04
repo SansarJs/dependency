@@ -26,8 +26,8 @@ rely on reflect-metadata for true IoC.
   registrations, missing dependencies, and more
 + [x] **No External Dependencies**
 + [ ] `Token` default values
-+ [ ] Containers as resources and and resources with disposal hooks
-+ [ ] Containers as parameters to `resolver` and `generator` definitions
++ [x] Containers as resources, and dependencies with disposal hooks
++ [x] Context as parameters to `resolver` and `generator` defintion functions
 + [ ] Support a `Configuration` abstraction for defining, importing & excluding
   some sets of dependency definitions (think a full set of configuration for
   Redis, Datadog, logging, etc)
@@ -196,6 +196,8 @@ console.log(child.get( Date ) === root.get(Date)); // true
 ```
 
 ### Forward References:
+
+When a token is defined later than its usage, leverage forward reference:
 ```ts
 import { Container, Inject } from "@sansar/dependency";
 
@@ -209,6 +211,57 @@ class B {}
 
 console.log(new Container().get( A ) instanceof A); // true
 console.log(new Container().get( A ).b instanceof B); // true
+```
+
+### Resources Management
+
+The `Container` class is EcmaScript-compliant by implementing the
+`[Symbol.dispose]` method. Futhermore, any dependency object, whether a static
+value, injected, resolver- or generator-based, that implements the
+`[Symbol.dispose]` method will be invoked when the container resource is cleaned
+up.
+
+I case you do control the dependent value implementation, you can:
++ pass an `onDestroy` callback to the dependency provider when registering it
++ call `onDestroy( hook )` with your disposal hook yourself from the `Context`
+  object passed to `resolver`s and `generator`s.
+
+> **NOTE:** A dependency lifecycle is tied to its related container lifetime.
+> This is relevant for scoped dependencies which are tied to the contained with
+> the matching scope.
+
+> **NOTE:** When a container is disposed, it propagates to descendant
+> containers. We hope this helps preventing some weird inconsistencies.
+
+```ts
+import { Container, Inject, Token } from "@sansar/dependency";
+
+class A extends Token<number> {}
+
+class B {}
+
+@Inject(A, B)
+class C {
+  [Symbol.dispose]() {/* 1 */}
+}
+
+const scope = Symbol();
+const root = new Container()
+  .register(A, { value: Math.PI, onDestroy() {/* 2 */} })
+  .register(B, {
+    scope,
+    resolver: ctx => {
+      ctx.onDestroy(bValue => {/* 3 */})
+      return Math.random();
+    }});
+const container = new Container({ scope, parent: root });
+
+container.get( C );
+(() => { using _ = container; });
+// when container goes out of scope, its [Symbol.dispose] is called
+// so it the B instance cached there, through the #3 onDestroy hook
+
+// when root goes out of scope or is disposed of, so will A (#2) and C (#1).
 ```
 
 
